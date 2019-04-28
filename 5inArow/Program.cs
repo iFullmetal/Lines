@@ -58,7 +58,7 @@ namespace _5inArow
                 //выовжу прогрессбар
                 Progressbar.draw(progresbarSize);
            
-                lines.InputHandler();//обрабатываю ввод управления курсором
+                if(lines.InputHandler()) return;//обрабатываю ввод пользователя(управления курсором, перемещение кубиков с отрисовкой пути и выход из игры)
 
                 lines.addCubes(); //добавляю три новых кубика
 

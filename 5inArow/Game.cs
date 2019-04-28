@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace _5inArow
 {
-    struct Vec2i //структура для хранения позиций
+    struct Vec2i //структура для хранения позиции
     {
         public int x, y;
         public Vec2i(int x, int y)
@@ -32,13 +32,15 @@ namespace _5inArow
         Vec2i chosenCube = new Vec2i(-1, -1); //кубик, выбранный курсором для перемещения
         Vec2i destenation = new Vec2i(-1, -1); //позиция, в которую выбранный куб должен быть перемещен
         bool empty = true;
-        int colorQuantity = 2;//ставлю два цвета для кубиков, для того чтобы проще было продемонстрировать удаление 
+        int colorQuantity = 4;//ставлю два цвета для кубиков, для того чтобы проще было продемонстрировать удаление 
         Cube[,] matrix;
         PathFinder pathFinder;
+        int score;
         public Game(int sizeX, int sizeY)
         {
             this.sizeX = sizeX;
             this.sizeY = sizeY;
+            score = 0;
             matrix = new Cube[sizeY, sizeX];
             pathFinder = new PathFinder(this);
 
@@ -50,12 +52,12 @@ namespace _5inArow
                 }
             }
         }
-        public void addCubes()
+        public void addCubes() //добавление трех кубиков случайного цвета в случайные свободные места
         {
             Random r = new Random();
             int clr = r.Next(1, 1 + colorQuantity);
             //устанавливаю по 3 кубика в случайные свободные позиции матрицы
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 3; i++)
             {
                 int x = 0, y = 0;
                 do
@@ -93,7 +95,10 @@ namespace _5inArow
 
         void cleanIt(List<List<PositionForClearing>> brokenCubes) //удаление линий(включая пересекающиеся)
         {
+            
+            SortedSet<PositionForClearing> uniqueBrokenCubes = new SortedSet<PositionForClearing>(); //так как из-за особенности работы sameLineFinder сюда могли попасть одни и те же кубики по нескольку раз, но я хочу подсчитать счет за каждый сломаный кубик правильно, то мне необходимо убрать повторы
 
+            //удаление кубиков
             for (int i = 0; i < brokenCubes.Count(); i++) //проход по списку линий
             {
                 for (int j = 0; j < brokenCubes[i].Count(); j++) //проход по элементам линий
@@ -102,8 +107,11 @@ namespace _5inArow
                     matrix[brokenCubes[i][j].y, brokenCubes[i][j].x].isFilled = false;
                     matrix[brokenCubes[i][j].y, brokenCubes[i][j].x].clr = 0;
                     Program.drawCube(brokenCubes[i][j].x * 3, brokenCubes[i][j].y * 2, ConsoleColor.Black);
+
+                    uniqueBrokenCubes.Add(brokenCubes[i][j]); //добавляю элемент в множество без повторений чтобы правильно подсчитать счет
                 }
             }
+            score += uniqueBrokenCubes.Count; // к счету прибавляется количество уникальных уничтоженых кубов
         }
         bool sameLineFinder(ref List<PositionForClearing> line) //проверяет, можно ли удалить что-то в этой линии(от 5 кубиков одного цвета и более), если да то line будет хранить эти кубики, а функция вернет правду
         {
@@ -235,10 +243,10 @@ namespace _5inArow
                 cursor.y += dirY;
             }
         }
-        public void InputHandler()
+        public bool InputHandler() //обрабока ввода/смены кубиков местами с последующей отрисовкой пути
         {
-            if (empty) return; //если не было поставлено ни одного кубика, то смысла пользоваться курсором нет
-
+            if (empty) return false; //если не было поставлено ни одного кубика, то смысла пользоваться курсором нет
+            drawCursor();
             ConsoleKeyInfo key = new ConsoleKeyInfo();
             bool cubesChoosed = false;
             do
@@ -271,6 +279,8 @@ namespace _5inArow
                             cubesChoosed = true; //кубики выбраны, цикл перестает работать
                         }
                         break;
+                    case ConsoleKey.Escape://если нажата esc, то вернется правда и главный цикл будет прерван, игра будет закончена
+                        return true; 
                 }
                 drawCursor();//отрисовываю курсор в новой позиции
 
@@ -285,16 +295,17 @@ namespace _5inArow
             if (pathFinder.findPath()) //ищу путь
             {
                 pathFinder.drawPath(); //если он найден, то рисую его
+
+                //перемещаю кубик
                 matrix[destenation.y, destenation.x] = matrix[chosenCube.y, chosenCube.x];
                 matrix[chosenCube.y, chosenCube.x] = new Cube(ConsoleColor.Black);
-
-                Program.drawCube(destenation.x, destenation.y, matrix[destenation.y, destenation.x].clr);
-                Program.drawCube(chosenCube.x, chosenCube.y, ConsoleColor.Black);
+                //перерисовываю этот кубик в консоли в новой позиции
+                Program.drawCube(chosenCube.x * 3, chosenCube.y * 2, ConsoleColor.Black);
+                Program.drawCube(destenation.x * 3, destenation.y * 2, matrix[destenation.y, destenation.x].clr);
             }
-
             chosenCube = new Vec2i(-1, -1); 
             destenation = new Vec2i(-1, -1);
-
+            return false;
 
         }
         void clearCursor()
