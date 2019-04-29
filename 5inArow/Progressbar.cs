@@ -17,7 +17,7 @@ namespace _5inArow
                 Thread.Sleep(50);
                 Console.SetCursorPosition(0, 23);
                 Console.BackgroundColor = ConsoleColor.Black;
-                Console.WriteLine(((i / (double)size) * 100.0).ToString() + "%");//вывожу количество процентов заполнения прогресбара
+                Console.WriteLine((Math.Round((i / (double)size) * 100.0)).ToString() + "%");//вывожу количество процентов заполнения прогресбара
             }
             Console.SetCursorPosition(0, 23);
             Console.WriteLine(100.0 + "%"); //100 в конце не успевает вывестись, по этому делаю это здесь

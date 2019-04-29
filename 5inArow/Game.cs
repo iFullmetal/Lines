@@ -4,9 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Runtime.Serialization.Formatters.Soap;
+using System.IO;
 
 namespace _5inArow
 {
+    [Serializable]
     struct Vec2i //структура для хранения позиции
     {
         public int x, y;
@@ -19,11 +22,12 @@ namespace _5inArow
         {
             return !(first.x == second.x && first.y == second.y);
         }
-        public static bool operator==(Vec2i first, Vec2i second)
+        public static bool operator ==(Vec2i first, Vec2i second)
         {
             return first.x == second.x && first.y == second.y;
         }
     }
+    [Serializable]
     class Game
     {
         int sizeX = 10;
@@ -95,8 +99,8 @@ namespace _5inArow
 
         void cleanIt(List<List<PositionForClearing>> brokenCubes) //удаление линий(включая пересекающиеся)
         {
-            
-            SortedSet<PositionForClearing> uniqueBrokenCubes = new SortedSet<PositionForClearing>(); //так как из-за особенности работы sameLineFinder сюда могли попасть одни и те же кубики по нескольку раз, но я хочу подсчитать счет за каждый сломаный кубик правильно, то мне необходимо убрать повторы
+
+            List<PositionForClearing> uniqueBrokenCubes = new List<PositionForClearing>(); //так как из-за особенности работы sameLineFinder сюда могли попасть одни и те же кубики по нескольку раз, но я хочу подсчитать счет за каждый сломаный кубик правильно, то мне необходимо убрать повторы
 
             //удаление кубиков
             for (int i = 0; i < brokenCubes.Count(); i++) //проход по списку линий
@@ -111,7 +115,7 @@ namespace _5inArow
                     uniqueBrokenCubes.Add(brokenCubes[i][j]); //добавляю элемент в множество без повторений чтобы правильно подсчитать счет
                 }
             }
-            score += uniqueBrokenCubes.Count; // к счету прибавляется количество уникальных уничтоженых кубов
+            score += uniqueBrokenCubes.Distinct().Count(); //к счету прибавляется количество уникальных уничтоженых кубов
         }
         bool sameLineFinder(ref List<PositionForClearing> line) //проверяет, можно ли удалить что-то в этой линии(от 5 кубиков одного цвета и более), если да то line будет хранить эти кубики, а функция вернет правду
         {
@@ -230,7 +234,7 @@ namespace _5inArow
                         cubeLines.Clear();
                     }
 
-                   
+
                 }
             }
             cleanIt(forBreaking); //вызываю функцию удаления, отправляя туда список линий, которые необходимо удалить
@@ -247,6 +251,8 @@ namespace _5inArow
         {
             if (empty) return false; //если не было поставлено ни одного кубика, то смысла пользоваться курсором нет
             drawCursor();
+            Console.BackgroundColor = ConsoleColor.Black;
+            Console.SetCursorPosition(50, 10);
             ConsoleKeyInfo key = new ConsoleKeyInfo();
             bool cubesChoosed = false;
             do
@@ -269,42 +275,80 @@ namespace _5inArow
                         moveCursor(1, 0);
                         break;
                     case ConsoleKey.Spacebar: //при нажатии на пробел выбирается куб
-                        if(matrix[cursor.y, cursor.x].isFilled != false && chosenCube == new Vec2i(-1, -1)) //если до этого кубик, который нужно переместить не выбран
+                        if (matrix[cursor.y, cursor.x].isFilled != false && chosenCube == new Vec2i(-1, -1)) //если до этого кубик, который нужно переместить не выбран
                         {
                             chosenCube = cursor; //то выбирается он
                         }
                         else if (matrix[cursor.y, cursor.x].isFilled == false && chosenCube != new Vec2i(-1, -1)) //если он уже выбран, то выбирается место, куда его необходимо переместить
                         {
                             destenation = cursor;
-                            cubesChoosed = true; //кубики выбраны, цикл перестает работать
+
+                            pathFinder.clear();//инициализирую поля для поиска пути
+
+                            if (pathFinder.findPath()) //ищу путь
+                            {
+                                
+                                pathFinder.drawPath(); //если он найден, то рисую его
+
+                                //перемещаю кубик
+                                matrix[destenation.y, destenation.x] = matrix[chosenCube.y, chosenCube.x];
+                                matrix[chosenCube.y, chosenCube.x] = new Cube(ConsoleColor.Black);
+                                //перерисовываю этот кубик в консоли в новой позиции
+                                Program.drawCube(chosenCube.x * 3, chosenCube.y * 2, ConsoleColor.Black);
+                                Program.drawCube(destenation.x * 3, destenation.y * 2, matrix[destenation.y, destenation.x].clr);
+
+                                cubesChoosed = true; //путь найден, цикл больше работать не будет
+                            }
+                            chosenCube = new Vec2i(-1, -1);
+                            destenation = new Vec2i(-1, -1);
                         }
                         break;
                     case ConsoleKey.Escape://если нажата esc, то вернется правда и главный цикл будет прерван, игра будет закончена
-                        return true; 
+                        return true;
+                    case ConsoleKey.S:
+                        {
+                            //если нажата S, то провожу xml сериализацию
+                            SoapFormatter sp = new SoapFormatter();
+                            FileStream fs = new FileStream("Save.xml", FileMode.Create);
+                            sp.Serialize(fs, this);
+                            fs.Close();
+                        }break;
+                    case ConsoleKey.L:
+                        if(File.Exists("Save.xml"))//если файл существует
+                        {
+                            SoapFormatter sp = new SoapFormatter();
+                            FileStream fs = new FileStream("Save.xml", FileMode.Open);
+                            Game newgame = (Game)sp.Deserialize(fs);
+                            fs.Close();
+                            chosenCube = newgame.chosenCube;
+                            cursor = newgame.cursor;
+                            destenation = newgame.destenation;
+                            matrix = newgame.matrix;
+                            empty = newgame.empty;
+                            colorQuantity = newgame.colorQuantity;
+                            score = newgame.score;
+                            sizeX = newgame.sizeX;
+                            sizeY = newgame.sizeY;
+                            for(int i = 0; i < sizeY; i++)
+                            {
+                                for(int j = 0; j < sizeX; j++)
+                                {
+                                    Program.drawCube(j * 3, i * 2, matrix[i, j].clr);
+                                }
+                            }
+                        }
+                        break;
+
                 }
                 drawCursor();//отрисовываю курсор в новой позиции
 
                 Console.BackgroundColor = ConsoleColor.Black;
                 Console.SetCursorPosition(50, 10);
-                
+
 
             } while (!cubesChoosed); //считывать ввод буду до тех пор, пока координаты для перемещения не будут выбраны
 
-            pathFinder.clear();//инициализирую поля для поиска пути
-
-            if (pathFinder.findPath()) //ищу путь
-            {
-                pathFinder.drawPath(); //если он найден, то рисую его
-
-                //перемещаю кубик
-                matrix[destenation.y, destenation.x] = matrix[chosenCube.y, chosenCube.x];
-                matrix[chosenCube.y, chosenCube.x] = new Cube(ConsoleColor.Black);
-                //перерисовываю этот кубик в консоли в новой позиции
-                Program.drawCube(chosenCube.x * 3, chosenCube.y * 2, ConsoleColor.Black);
-                Program.drawCube(destenation.x * 3, destenation.y * 2, matrix[destenation.y, destenation.x].clr);
-            }
-            chosenCube = new Vec2i(-1, -1); 
-            destenation = new Vec2i(-1, -1);
+           
             return false;
 
         }
@@ -333,7 +377,12 @@ namespace _5inArow
                 }
             }
         }
-
+        public void drawScore()
+        {
+            Console.SetCursorPosition(32, 1);
+            Console.Write("Score: " + score);
+        }
+        [Serializable]
         class PathFinder
         {
             Game game;
@@ -363,7 +412,7 @@ namespace _5inArow
             bool move(int x, int y) //поиск возможных путей. если путь найден, то заполняю его номером следующего шага
             {
                 bool passed = false;
-                if(isValid(x + 1, y) && game.matrix[y, x + 1].isFilled == false && way[y, x + 1] == 0)
+                if (isValid(x + 1, y) && game.matrix[y, x + 1].isFilled == false && way[y, x + 1] == 0)
                 {
                     way[y, x + 1] = step + 1;
                     passed = true;
@@ -387,7 +436,7 @@ namespace _5inArow
             }
             public bool findPath() //поиск пути по волновому алгоритму(я написал заново немного отлично от того, что написали вы)
             {
-                if(game.chosenCube.x < 0 || game.chosenCube.x > game.sizeX || game.chosenCube.y < 0 || game.chosenCube.y > game.sizeY)
+                if (game.chosenCube.x < 0 || game.chosenCube.x > game.sizeX || game.chosenCube.y < 0 || game.chosenCube.y > game.sizeY)
                 {
                     return false;
                 }
@@ -397,13 +446,13 @@ namespace _5inArow
                 {
                     deadEnd = true;
                     //делаю ход на шаг вперед везде, где это возможно
-                    for(int i = 0; i < game.sizeY; i++)
+                    for (int i = 0; i < game.sizeY; i++)
                     {
-                        for(int j = 0; j < game.sizeX; j++)
+                        for (int j = 0; j < game.sizeX; j++)
                         {
-                            if(way[i, j] == step)
+                            if (way[i, j] == step)
                             {
-                                if(move(j, i))
+                                if (move(j, i))
                                 {
                                     deadEnd = false;//если хотябы один шаг удачен, то алгоритм не в тупике
                                 }
